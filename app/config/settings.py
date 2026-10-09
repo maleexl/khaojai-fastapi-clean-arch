@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Comma-separated list of allowed origins for CORS.
+    CORS_ORIGINS: str = "http://localhost:5173"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

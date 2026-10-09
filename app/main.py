@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config.settings import settings
@@ -40,6 +41,19 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
         lifespan=lifespan,
         version="1.1.0",
+    )
+
+    # CORS — allow the Vite dev server (and any configured origins).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            o.strip()
+            for o in settings.CORS_ORIGINS.split(",")
+            if o.strip()
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @app.exception_handler(AppException)
