@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blue)
-![Tests](https://img.shields.io/badge/tests-47%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-90%25-green)
 
 A **Python 3.11 + FastAPI** reimplementation inspired by
@@ -19,8 +19,9 @@ preserving its **Clean Architecture** layering with an async-first stack.
 - **Dependency Inversion in action** — use cases depend on repository interfaces, not implementations
 - **AST-enforced boundaries** — domain/usecases cannot import framework code
 - **Dual-token JWT** — short-lived access + long-lived refresh with jti-based blacklist
-- **47 tests / 90% coverage / no DB required** — in-memory fakes prove the DI boundary
+- **47 unit/API tests + 1 Playwright E2E** — in-memory fakes prove the DI boundary
 - **Async I/O end-to-end** — FastAPI → SQLAlchemy 2.x → asyncpg → PostgreSQL
+- **Full-stack bonus** — React 19 + Vite + TypeScript frontend, Playwright E2E
 
 ---
 
@@ -50,6 +51,7 @@ preserving its **Clean Architecture** layering with an async-first stack.
 - **`config/crudModels.go`** — omitted (tied to generic CRUD).
 - **TokenBlacklist entity** — added. jti-based revocation (reference has no logout).
 - **AST architecture tests** — added. Enforced by code, not convention.
+- **React frontend + Playwright E2E** — added as a bonus.
 
 ---
 
@@ -76,6 +78,34 @@ pip install -r requirements.txt
 docker compose up -d db
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
+```
+
+---
+
+## Frontend (Bonus)
+
+A minimal **React 19 + Vite + TypeScript + Tailwind** SPA that exercises
+the three user flows end-to-end.
+
+**Pages:** `/register` · `/login` · `/profile` (protected)
+
+**Run locally:**
+
+```bash
+cd frontend
+npm install
+cp .env.example .env       # VITE_API_URL=http://localhost:8000
+npm run dev                # http://localhost:5173
+```
+
+Backend must be running (`docker compose up -d`). CORS is preconfigured
+via the `CORS_ORIGINS` setting (default `http://localhost:5173`).
+
+**E2E coverage:** `tests/e2e/test_frontend_flow.py` drives a real Chromium
+browser through register → login → profile → logout:
+
+```bash
+pytest tests/e2e/test_frontend_flow.py -v
 ```
 
 ---
@@ -107,11 +137,11 @@ Wiring lives in `_get_usecase(session)` and is ~10 lines:
 | Reason | What it buys you |
 |--------|------------------|
 | **Testability** | Use cases are constructed with fakes directly — no DB, no web context, no container. |
-| **Explicitness** | Every dependency is a visible constructor argument. `grep UserUsecase(` shows the wiring. |
+| **Explicitness** | Every dependency is a visible constructor argument. |
 | **No magic** | Debugging is reading Python — no framework lifecycle to learn. |
 
-**Trade-off accepted:** wiring grows linearly with the app. If it becomes painful,
-the fix is a small factory module — still manual, still framework-free.
+**Trade-off accepted:** wiring grows linearly with the app. If it becomes
+painful, the fix is a small factory module — still manual, still framework-free.
 
 ---
 
@@ -124,7 +154,7 @@ the fix is a small factory module — still manual, still framework-free.
 | **Dual JWT (access + refresh)** | Short-lived access limits damage; refresh enables long sessions | Requires blacklist for logout |
 | **jti-based blacklist** | Stateless JWT + server-side revocation | DB write per logout; needs cleanup |
 | **Custom exceptions → HTTP** | Usecase raises `ConflictError`; router maps to 409 | Two translation points |
-| **AST architecture tests** | Docs rot; a failing test doesn't. Catches framework imports in `domain/`. | Negligible overhead |
+| **AST architecture tests** | Docs rot; a failing test doesn't | Negligible overhead |
 
 ---
 
@@ -193,16 +223,16 @@ Full details at `/docs`. Two examples:
 ### How to run
 
 ```bash
-pytest tests/ -v
-pytest tests/ --cov=app --cov-report=term-missing
+# Core suite (no DB / Docker / network required)
+pytest tests/unit tests/api -v
+pytest tests/unit tests/api --cov=app --cov-report=term-missing
 ```
-
-No DB, no Docker, no network required.
 
 ### Real results
 
-- **47 tests passing** in ~6s
+- **47 unit/API tests passing** in ~6s
 - **90% coverage**
+- **+1 Playwright E2E test** (requires frontend + backend running)
 
 ### Coverage by layer
 
@@ -247,7 +277,18 @@ a real database. We treat these as **integration territory** — covered by the
 `docker compose up` smoke test, not by mocked unit tests. Mocking a database
 to test the database defeats the purpose.
 
-### End-to-end verification
+### Browser E2E (Playwright)
+
+`tests/e2e/test_frontend_flow.py` drives a real Chromium browser through
+the complete user journey: register → login → profile → logout. Uses a
+unique email per run (idempotent).
+
+```bash
+# Requires: docker compose up -d AND cd frontend && npm run dev
+pytest tests/e2e/test_frontend_flow.py -v
+```
+
+### Backend end-to-end verification
 
 Sequence run against a live `docker compose up` stack:
 
@@ -289,12 +330,21 @@ khaojai-fastapi-clean-arch/
 │   └── shared/
 │       ├── exceptions.py
 │       └── security.py
+├── frontend/                                # ← React 19 + Vite + TS + Tailwind
+│   ├── src/
+│   │   ├── api/client.ts
+│   │   ├── contexts/AuthContext.tsx
+│   │   ├── components/{Layout,ProtectedRoute}.tsx
+│   │   └── pages/{Register,Login,Profile}.tsx
+│   ├── package.json
+│   └── vite.config.ts
 ├── alembic/
 │   ├── env.py                               # async migrations
 │   └── versions/                            # users + token_blacklist migrations
 ├── tests/
 │   ├── unit/                                # 32 tests
-│   └── api/                                 # 15 tests
+│   ├── api/                                 # 15 tests
+│   └── e2e/                                 # 1 Playwright test
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
@@ -355,3 +405,4 @@ The architecture is a Python reimplementation inspired by
 [max38/golang-clean-code-architecture](https://github.com/max38/golang-clean-code-architecture),
 which is also licensed under Apache 2.0. No Go source code was copied —
 the reference was used to understand the layer structure and API surface.
+EOF
